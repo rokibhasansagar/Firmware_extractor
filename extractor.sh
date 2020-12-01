@@ -8,7 +8,8 @@
 # QFIL
 # AB OTA
 # Image zip
-# ozip
+# Oppo ozip
+# Oppo zipped-ofp
 # Sony ftf
 # ZTE update.zip
 # KDDI .bin
@@ -69,6 +70,11 @@ if [[ ! -d "$toolsdir/oppo_ozip_decrypt" ]]; then
 else
     git -C "$toolsdir/oppo_ozip_decrypt" pull
 fi
+if [[ ! -d "$toolsdir/oppo_decrypt" ]]; then
+    git clone -q https://github.com/bkerler/oppo_decrypt.git "$toolsdir/oppo_decrypt"
+else
+    git -C "$toolsdir/oppo_decrypt" pull
+fi
 if [[ ! -d "$toolsdir/update_payload_extractor" ]]; then
     git clone -q https://github.com/erfanoabdi/update_payload_extractor.git "$toolsdir/update_payload_extractor"
 else
@@ -81,6 +87,8 @@ unsin="$toolsdir/$HOST/bin/unsin"
 payload_extractor="$toolsdir/update_payload_extractor/extract.py"
 sdat2img="$toolsdir/sdat2img.py"
 ozipdecrypt="$toolsdir/oppo_ozip_decrypt/ozipdecrypt.py"
+ofp_qc_decrypt="$toolsdir/oppo_decrypt/ofp_qc_extract.py"
+ofp_mtk_decrypt="$toolsdir/oppo_decrypt/ofp_mtk_decrypt.py"
 lpunpack="$toolsdir/$HOST/bin/lpunpack"
 splituapp="$toolsdir/splituapp"
 pacextractor="$toolsdir/$HOST/bin/pacextractor"
@@ -107,11 +115,24 @@ cd $tmpdir
 
 MAGIC=$(head -c12 "$romzip" | tr -d '\0')
 if [[ $MAGIC == "OPPOENCRYPT!" ]] || [[ "$romzipext" == "ozip" ]]; then
-    echo "ozip detected"
+    echo "Oppo ozip detected"
     cp "$romzip" "$tmpdir/temp.ozip"
     python3 $ozipdecrypt "$tmpdir/temp.ozip"
     if [[ -d "$tmpdir/out" ]]; then
         7z a -r "$tmpdir/temp.zip" "$tmpdir/out/*"
+        rm -rf -- $tmpdir/temp.ozip $tmpdir/out/* 2>/dev/null
+    fi
+    "$LOCALDIR/extractor.sh" "$tmpdir/temp.zip" "$outdir"
+    exit
+fi
+if [[ $(7z l -ba "$romzip" | gawk '{print $NF}' | grep ".*.ofp") ]]; then
+    echo "Oppo ofp detected"
+    7z e -y -- "$romzip" 2>/dev/null >> $tmpdir/zip.log
+    ofpfile=$(ls -l | grep ".*.ofp" | gawk '{print $NF}')
+    python3 $ofp_qc_decrypt "$ofpfile" out || python3 $ofp_mtk_decrypt "$ofpfile" out
+    if [[ -d "$tmpdir/out" ]]; then
+        7z a -r "$tmpdir/temp.zip" "$tmpdir/out/*"
+        rm -rf -- $ofpfile $tmpdir/out/* 2>/dev/null
     fi
     "$LOCALDIR/extractor.sh" "$tmpdir/temp.zip" "$outdir"
     exit
